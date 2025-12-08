@@ -1,0 +1,44 @@
+pipeline {
+    agent any
+
+    tools {
+        jdk 'JAVA_HOME'        // Nom configuré dans Jenkins → Global Tool Configuration
+        maven 'M2_HOME'        // Nom configuré dans Jenkins → Global Tool Configuration
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main', url: 'https://github.com/AzizTurki07/foyer.git'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh "mvn clean package -DskipTests"
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh "mvn test"
+            }
+        }
+
+        stage('Archive') {
+            steps {
+                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Build OK ✔"
+        }
+        failure {
+            echo "Build Failed ❌"
+        }
+    }
+}
