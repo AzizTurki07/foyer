@@ -2,43 +2,70 @@ pipeline {
     agent any
 
     tools {
-        jdk 'JAVA_HOME'        // Nom configuré dans Jenkins → Global Tool Configuration
-        maven 'M2_HOME'        // Nom configuré dans Jenkins → Global Tool Configuration
+        maven 'Maven'
+        jdk 'JDK17'
+    }
+
+    environment {
+        IMAGE_NAME = "azizos07/foyer"
+        IMAGE_TAG = "latest"
+        DOCKER_CREDS = "dockerhub-creds"
+        KUBE_NAMESPACE = "devops"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/AzizTurki07/foyer.git'
+                git branch: 'main',
+                    url: 'https://github.com/AzizTurki07/foyer.git'
             }
         }
 
-        stage('Build') {
+        stage('Build with Maven') {
             steps {
-                sh "mvn clean package -DskipTests"
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Test') {
+        stage('Build Docker Image') {
             steps {
-                sh "mvn test"
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
-        stage('Archive') {
+        stage('Push Docker Image') {
             steps {
-                archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+                withCredentials([usernamePassword(
+                    credentialsId: DOCKER_CREDS,
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    docker push $IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                sh '''
+                kubectl apply -f mysql-deployment.yaml
+                kubectl apply -f spring-deployment.yaml
+                '''
             }
         }
     }
 
     post {
         success {
-            echo "Build OK ✔"
+            echo '✅ Pipeline exécuté avec succès'
         }
         failure {
-            echo "Build Failed ❌"
+            echo '❌ Erreur dans le pipeline'
         }
     }
 }
+
